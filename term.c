@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 #include <unistd.h>
 #include <termios.h>
 #ifdef USE_FLOCK
@@ -1614,7 +1615,12 @@ term_drain(int fd)
            the port is immediately reconfigured, even after a
            drain. (I guess, drain does not wait for everything to
            actually be transitted on the wire). */
-        if ( DRAIN_DELAY ) usleep(DRAIN_DELAY);
+        if ( DRAIN_DELAY ) {
+            struct timespec ts = { .tv_sec = DRAIN_DELAY / 1000000,
+                                   .tv_nsec = (DRAIN_DELAY % 1000000) * 1000 };
+            while (nanosleep(&ts, &ts) < 0 && errno == EINTR)
+                ;
+        }
 
     } while (0);
 
@@ -1666,7 +1672,12 @@ term_fake_flush(int fd)
             break;
         }
         /* see comment in term_drain */
-        if ( DRAIN_DELAY ) usleep(DRAIN_DELAY);
+        if ( DRAIN_DELAY ) {
+            struct timespec ts = { .tv_sec = DRAIN_DELAY / 1000000,
+                                   .tv_nsec = (DRAIN_DELAY % 1000000) * 1000 };
+            while (nanosleep(&ts, &ts) < 0 && errno == EINTR)
+                ;
+        }
         /* Reset flow-control to original setting. */
         r = tcsetattr(fd, TCSANOW, &term.currtermios[i]);
         if ( r < 0 ) {

@@ -685,11 +685,11 @@ read_baud (void)
             fd_printf(STO, "*** Invalid baudrate!");
             baud = -1;
         }
+
+        if (baud >= 0 && baudstr != NULL)
+            add_history(baudstr);
         free(baudstr);
     } while (baud < 0);
-
-    if (baudstr != NULL)
-        add_history(baudstr);
 
     return baud;
 }
@@ -898,7 +898,7 @@ do_map (char *b, int map, char c)
         b[0] = c; n = 1;
     }
 
-    assert(n > 0 && n <= M_MAXMAP);
+    assert(n >= 0 && n <= M_MAXMAP);
 
     return n;
 }
