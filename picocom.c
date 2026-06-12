@@ -36,6 +36,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/time.h>
+#include <time.h>
 #include <limits.h>
 #ifdef USE_FLOCK
 #include <sys/file.h>
@@ -211,6 +213,7 @@ struct {
     int omap;
     int emap;
     char *log_filename;
+    int log_timestamp;
     char *initstring;
     int exit_after;
     int exit;
@@ -241,6 +244,7 @@ struct {
     .omap = M_O_DFL,
     .emap = M_E_DFL,
     .log_filename = NULL,
+    .log_timestamp = 0,
     .initstring = NULL,
     .exit_after = -1,
     .exit = 0,
@@ -259,6 +263,8 @@ int sig_exit = 0;
 
 int tty_fd = -1;
 int log_fd = -1;
+int log_line_start = 1;
+int log_prev_cr = 0;
 
 /* RTS and DTR are usually raised upon opening the serial port (at least
    as tested on Linux, OpenBSD and macOS, but FreeBSD behave different) */
@@ -279,6 +285,81 @@ struct tty_q {
     .len = 0,
     .buff = NULL
 };
+
+static int
+log_timestamp(void)
+{
+    struct timeval tv;
+    struct tm tm;
+    char buf[32];
+    int len;
+
+    if ( gettimeofday(&tv, NULL) < 0 )
+        return -1;
+    if ( localtime_r(&tv.tv_sec, &tm) == NULL )
+        return -1;
+
+    len = snprintf(buf, sizeof(buf),
+                   "[%04d-%02d-%02d %02d:%02d:%02d.%03ld] ",
+                   tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                   tm.tm_hour, tm.tm_min, tm.tm_sec,
+                   (long)(tv.tv_usec / 1000));
+    if ( len < 0 || len >= (int)sizeof(buf) ) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    return writen_ni(log_fd, buf, len) == len ? 0 : -1;
+}
+
+static ssize_t
+log_write(const void *buff, size_t n)
+{
+    const char *p;
+    size_t i;
+
+    p = buff;
+    i = 0;
+    while ( i < n ) {
+        size_t start;
+
+        if ( log_prev_cr ) {
+            if ( p[i] == '\n' ) {
+                if ( writen_ni(log_fd, p + i, 1) != 1 )
+                    return -1;
+                i++;
+                log_prev_cr = 0;
+                log_line_start = 1;
+                continue;
+            }
+            log_prev_cr = 0;
+        }
+
+        if ( log_line_start ) {
+            if ( log_timestamp() < 0 )
+                return -1;
+            log_line_start = 0;
+        }
+
+        start = i;
+        while ( i < n && p[i] != '\r' && p[i] != '\n' )
+            i++;
+        if ( i > start ) {
+            if ( writen_ni(log_fd, p + start, i - start) != (ssize_t)(i - start) )
+                return -1;
+        }
+        if ( i == n )
+            break;
+
+        if ( writen_ni(log_fd, p + i, 1) != 1 )
+            return -1;
+        log_line_start = 1;
+        log_prev_cr = p[i] == '\r';
+        i++;
+    }
+
+    return n;
+}
 
 #define STI_RD_SZ 16
 #define TTY_RD_SZ 128
@@ -1525,7 +1606,8 @@ loop(void)
                 int i;
                 char *bmp = &buff_map[0];
                 if ( opts.log_filename )
-                    if ( writen_ni(log_fd, buff_rd, n) < n )
+                    if ( (opts.log_timestamp ? log_write(buff_rd, n) :
+                          writen_ni(log_fd, buff_rd, n)) < n )
                         fatal("write to logfile failed: %s", strerror(errno));
                 for (i = 0; i < n; i++) {
                     bmp += do_map(bmp, opts.imap, buff_rd[i]);
@@ -1548,7 +1630,8 @@ loop(void)
             if ( n <= 0 )
                 fatal("write to port failed: %s", strerror(errno));
             if ( opts.lecho && opts.log_filename )
-                if ( writen_ni(log_fd, tty_q.buff, n) < n )
+                if ( (opts.log_timestamp ? log_write(tty_q.buff, n) :
+                      writen_ni(log_fd, tty_q.buff, n)) < n )
                     fatal("write to logfile failed: %s", strerror(errno));
             memmove(tty_q.buff, tty_q.buff + n, tty_q.len - n);
             tty_q.len -= n;
@@ -1650,7 +1733,8 @@ show_usage(char *name)
     printf("  --omap <map> (output mappings)\n");
     printf("  --emap <map> (local-echo mappings)\n");
     printf("  --lo<g>file <filename>\n");
-    printf("  --inits<t>ring <string>\n");
+    printf("  --<t>imestamp\n");
+    printf("  --initstring <string>\n");
     printf("  --e<x>it-after <msec>\n");
     printf("  --e<X>it\n");
     printf("  --lower-rts\n");
@@ -1709,7 +1793,8 @@ parse_args(int argc, char *argv[])
         {"databits", required_argument, 0, 'd'},
         {"stopbits", required_argument, 0, 'p'},
         {"logfile", required_argument, 0, 'g'},
-        {"initstring", required_argument, 0, 't'},
+        {"timestamp", no_argument, 0, 't'},
+        {"initstring", required_argument, 0, 5},
         {"exit-after", required_argument, 0, 'x'},
         {"exit", no_argument, 0, 'X'},
         {"lower-rts", no_argument, 0, 1},
@@ -1731,7 +1816,7 @@ parse_args(int argc, char *argv[])
         /* no default error messages printed. */
         opterr = 0;
 
-        c = getopt_long(argc, argv, "hirulcqXnv:s:r:e:f:b:y:d:p:g:t:x:",
+        c = getopt_long(argc, argv, "hirulcqXtnv:s:r:e:f:b:y:d:p:g:x:",
                         longOptions, &optionIndex);
 
         if (c < 0)
@@ -1880,6 +1965,9 @@ parse_args(int argc, char *argv[])
             opts.log_filename = strdup(optarg);
             break;
         case 't':
+            opts.log_timestamp = 1;
+            break;
+        case 5:
             if ( opts.initstring ) free(opts.initstring);
             opts.initstring = strdup(optarg);
             break;
@@ -1979,6 +2067,7 @@ parse_args(int argc, char *argv[])
     printf("omap is        : "); print_map(opts.omap);
     printf("emap is        : "); print_map(opts.emap);
     printf("logfile is     : %s\n", opts.log_filename ? opts.log_filename : "none");
+    printf("timestamp is   : %s\n", opts.log_timestamp ? "yes" : "no");
     if ( opts.initstring ) {
         printf("initstring len : %lu bytes\n",
                (unsigned long)strlen(opts.initstring));

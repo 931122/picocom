@@ -349,7 +349,13 @@ Picocom accepts the following command-line options.
     mapping is performed) is also logged to the same file. (Default:
     no logging)
 
-**--initstring** | **-t**
+**--timestamp** | **-t**
+
+:   Prefix each logged line with a local timestamp in
+    **YYYY-MM-DD HH:MM:SS.mmm** format. This option only affects
+    **--logfile** output. (Default: Disabled)
+
+**--initstring**
 
 :   Send the provided string after opening and configuring the serial
     port. The init string is sent exactly as if it was input at the
@@ -360,7 +366,7 @@ Picocom accepts the following command-line options.
     start responding. Use **echo(1)** or **xxd(1)** to generate
     special characters like a CR or binary data. Example:
 
-        picocom -t "$(echo -ne 'AAATZ\r\n')" /dev/ttyS0
+        picocom --initstring "$(echo -ne 'AAATZ\r\n')" /dev/ttyS0
 
     Note, that the init string is not sent if **--noinit** is
     given. (Default: empty).

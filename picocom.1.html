@@ -151,9 +151,12 @@
 <dt><strong>--logfile</strong> | <strong>-g</strong></dt>
 <dd><p>Use specified file for logging (recording) serial input, and possibly serial output. If the file exists, it is appended to. Every character read from the serial port is written to the specified file (before input mapping is performed). If local-echo mode is is enabled (see <strong>--echo</strong> option and <strong>C-c</strong> command), then every character written to the serial port (after output mapping is performed) is also logged to the same file. (Default: no logging)</p>
 </dd>
-<dt><strong>--initstring</strong> | <strong>-t</strong></dt>
+<dt><strong>--timestamp</strong> | <strong>-t</strong></dt>
+<dd><p>Prefix each logged line with a local timestamp in <strong>YYYY-MM-DD HH:MM:SS.mmm</strong> format. This option only affects <strong>--logfile</strong> output. (Default: Disabled)</p>
+</dd>
+<dt><strong>--initstring</strong></dt>
 <dd><p>Send the provided string after opening and configuring the serial port. The init string is sent exactly as if it was input at the terminal. Sending the init string, picocom observes the <strong>--omap</strong> output mapping, the <strong>--echo</strong> local-echo setting, and the <strong>--emap</strong> local-echo mapping. This feature is useful, for example, if the serial device needs some special magic strings to start responding. Use <strong>echo(1)</strong> or <strong>xxd(1)</strong> to generate special characters like a CR or binary data. Example:</p>
-<pre><code>picocom -t &quot;$(echo -ne 'AAATZ\r\n')&quot; /dev/ttyS0</code></pre>
+<pre><code>picocom --initstring &quot;$(echo -ne 'AAATZ\r\n')&quot; /dev/ttyS0</code></pre>
 <p>Note, that the init string is not sent if <strong>--noinit</strong> is given. (Default: empty).</p>
 </dd>
 <dt><strong>--lower-rts</strong></dt>

@@ -290,7 +290,7 @@ _picocom()
            --noinit --noreset --hangup \
            --receive-cmd --send-cmd \
            --escape --no-escape \
-           --logfile \
+           --logfile --timestamp \
            --exit-after --exit \
            --nolock \
            --quiet --help )
@@ -369,7 +369,7 @@ _picocom()
             # Do default completion
             return 0
             ;;
-        -t | --initstring)
+        --initstring)
             # Do default completion
             return 0
             ;;

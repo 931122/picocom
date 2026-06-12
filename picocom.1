@@ -431,7 +431,15 @@ If local\-echo mode is is enabled (see \f[B]\-\-echo\f[] option and
 .RS
 .RE
 .TP
-.B \f[B]\-\-initstring\f[] | \f[B]\-t\f[]
+.B \f[B]\-\-timestamp\f[] | \f[B]\-t\f[]
+Prefix each logged line with a local timestamp in
+\f[B]YYYY\-MM\-DD HH:MM:SS.mmm\f[] format.
+This option only affects \f[B]\-\-logfile\f[] output.
+(Default: Disabled)
+.RS
+.RE
+.TP
+.B \f[B]\-\-initstring\f[]
 Send the provided string after opening and configuring the serial port.
 The init string is sent exactly as if it was input at the terminal.
 Sending the init string, picocom observes the \f[B]\-\-omap\f[] output
@@ -446,7 +454,7 @@ Example:
 .IP
 .nf
 \f[C]
-picocom\ \-t\ "$(echo\ \-ne\ \[aq]AAATZ\\r\\n\[aq])"\ /dev/ttyS0
+picocom\ \-\-initstring\ "$(echo\ \-ne\ \[aq]AAATZ\\r\\n\[aq])"\ /dev/ttyS0
 \f[]
 .fi
 .PP
